@@ -1,0 +1,18 @@
+{
+  "name": "hello-service",
+  "version": "0.1.0",
+  "description": "Lightweight Express target app for the GitOps + observability pipeline",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}
