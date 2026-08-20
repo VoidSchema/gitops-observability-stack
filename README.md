@@ -1,4 +1,4 @@
-# hello-service
+# spy-service
 
 A lightweight **Node.js + Express** microservice used as the **target deployment**
 for an end-to-end GitOps + Observability pipeline (Minikube, ArgoCD, Prometheus,
