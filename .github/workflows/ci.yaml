@@ -1,0 +1,63 @@
+name: CI Pipeline & GitOps Auto-Update
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - 'README.md'
+      - 'argocd/**'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Extract Metadata (Tags)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_HUB_USERNAME }}/light-service
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Update Kubernetes Deployment Image Tag
+        run: |
+          IMAGE_TAG=$(git rev-parse --short HEAD)
+          echo "Updating deployment.yaml with image tag: $IMAGE_TAG"
+
+          # Mengganti baris image di k8s/deployment.yaml secara presisi
+          sed -i "s|image: .*/light-service:.*|image: ${{ secrets.DOCKER_HUB_USERNAME }}/light-service:$IMAGE_TAG|g" k8s/deployment.yaml
+
+      - name: Commit and Push Image Tag Changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "CI: update light-service image tag to ${{ github.sha }} [skip ci]"
+          branch: ${{ github.ref_name }}
+          commit_user_name: "GitHub Actions Bot"
+          commit_user_email: "actions@github.com"
