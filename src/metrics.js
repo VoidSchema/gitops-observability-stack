@@ -77,6 +77,13 @@ export function createMetrics({
         );
       }
     }
+    for (const { method, path, status, value } of requestTotals.values()) {
+      lines.push(
+        `${prefix}_http_request_duration_seconds_bucket{method="${escapeLabel(
+          method
+        )}",path="${escapeLabel(path)}",status="${status}",le="+Inf"} ${value} ${ts}`
+      );
+    }
     for (const { method, path, status, value } of requestSums.values()) {
       lines.push(
         `${prefix}_http_request_duration_seconds_sum{method="${escapeLabel(
