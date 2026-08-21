@@ -2,7 +2,7 @@
 
 An end-to-end reference stack that demonstrates a **GitOps + Observability** workflow on Kubernetes (Minikube). It pairs a small Node.js microservice (`light-service`) with container packaging, declarative Kubernetes manifests, ArgoCD GitOps automation, Prometheus/Grafana monitoring, and a CI pipeline that builds, pushes, and auto-updates the deployment image.
 
-> **Repository vs. application naming.** This repository is the *GitOps Observability Stack*. The application it deploys is named **`light-service`** (used consistently in `k8s/`, ArgoCD, and CI). Note: `package.json` still declares the name `hello-service` and `src/app.js` defaults the logger name to `hello-service`. See [Known Issues](#known-issues) for details.
+> **Repository vs. application naming.** This repository is the *GitOps Observability Stack*. The application it deploys is named **`light-service`** (used consistently in `package.json`, `k8s/`, ArgoCD, and CI). It is configurable via the `APP_NAME` env var; the Prometheus metric prefix is derived from it with invalid characters (e.g. `-`) replaced by `_`.
 
 ---
 
@@ -35,7 +35,7 @@ This repository is both the **application source** and the **GitOps configuratio
 3. **ArgoCD** detects the change in Git and synchronizes the updated manifests into the cluster (self-healing, pruning enabled).
 4. **kube-prometheus-stack** (Prometheus + Grafana) runs alongside the application to provide cluster and workload observability.
 
-The application itself is intentionally minimal: a single Express process that serves a greeting endpoint and a health endpoint, emitting structured JSON logs to stdout.
+The application itself is intentionally minimal: a single Express process that serves a greeting endpoint, a health endpoint, and a Prometheus `/metrics` endpoint, emitting structured JSON logs to stdout.
 
 ---
 
@@ -66,7 +66,7 @@ The application itself is intentionally minimal: a single Express process that s
 └─────────────────────────────┘
 ```
 
-**Observability note:** Monitoring is provided by the `kube-prometheus-stack` Helm chart (Prometheus + Grafana), **not** VictoriaLogs. The application exposes a Prometheus `/metrics` endpoint (request count, latency histogram, uptime) that Prometheus scrapes directly via pod annotations, in addition to its stdout JSON logs. See [Observability](#observability).
+**Observability note:** Monitoring is provided by the `kube-prometheus-stack` Helm chart (Prometheus + Grafana), **not** VictoriaLogs. The application exposes a Prometheus `/metrics` endpoint (request count, latency histogram, uptime) that Prometheus scrapes directly via a `ServiceMonitor`, in addition to its stdout JSON logs. See [Observability](#observability).
 
 ---
 
@@ -75,14 +75,16 @@ The application itself is intentionally minimal: a single Express process that s
 ```
 gitops-observability-stack/
 ├── src/
-│   ├── app.js          # Express app factory: routes + access-log middleware
+│   ├── app.js          # Express app factory: routes + access-log + metrics wiring
 │   ├── logger.js       # Minimal structured JSON logger (stdout), level-aware
+│   ├── metrics.js      # Prometheus metrics collector + /metrics text renderer
 │   └── server.js       # Entry point: env config, listen, graceful shutdown
 ├── test/
-│   └── app.test.js     # Unit tests for API + logger (node:test + fetch)
+│   └── app.test.js     # Unit tests for API + logger + /metrics (node:test + fetch)
 ├── k8s/
 │   ├── deployment.yaml # light-service Deployment (2 replicas, probes, limits)
-│   └── services.yaml   # NodePort Service (80 → 8000)
+│   ├── services.yaml   # NodePort Service (80 → 8000), named port "http"
+│   └── servicemonitor.yaml # ServiceMonitor so Prometheus scrapes /metrics
 ├── .github/
 │   └── workflows/
 │       └── ci.yaml     # Build/push image + auto-update deployment image tag
@@ -191,8 +193,8 @@ All configuration is supplied via environment variables.
 Every line written to stdout is a single JSON object — no formatter or parser required by a log shipper:
 
 ```json
-{"timestamp":"2026-08-20T16:58:29.403Z","level":"INFO","logger":"hello-service","message":"root endpoint hit","endpoint":"/"}
-{"timestamp":"2026-08-20T16:58:29.429Z","level":"INFO","logger":"hello-service","message":"request completed","method":"GET","path":"/","status":200,"duration_ms":26.28}
+{"timestamp":"2026-08-20T16:58:29.403Z","level":"INFO","logger":"light-service","message":"root endpoint hit","endpoint":"/"}
+{"timestamp":"2026-08-20T16:58:29.429Z","level":"INFO","logger":"light-service","message":"request completed","method":"GET","path":"/","status":200,"duration_ms":26.28}
 ```
 
 Each request produces an access-log entry (`request completed`) with `method`, `path`, `status`, and `duration_ms`. The server also handles `SIGTERM`/`SIGINT` gracefully (logs `service stopping` and closes the listener), which is important for clean Kubernetes pod termination.
@@ -202,11 +204,17 @@ Each request produces an access-log entry (`request completed`) with `method`, `
 ## Kubernetes & ArgoCD
 
 **`k8s/deployment.yaml`** — `light-service` Deployment:
-- 2 replicas, `image: voidschema/light-service:main` (tag is auto-updated by CI)
-- Container port `8000`, CPU/memory requests & limits set
+- 2 replicas, `image: voidschema/light-service:main` (tag is auto-updated by CI to the commit SHA)
+- Container port `8000` named `http`, CPU/memory requests & limits set
 - `livenessProbe` and `readinessProbe` against `GET /health` (port 8000)
+- Pod annotations `prometheus.io/scrape: "true"` (informational; the actual scrape is driven by the `ServiceMonitor` below)
 
-**`k8s/services.yaml`** — `NodePort` Service mapping `80 → 8000`, selecting `app: light-service`.
+**`k8s/services.yaml`** — `NodePort` Service mapping `80 → 8000`, selecting `app: light-service`. The service port is named `http` so the `ServiceMonitor` can reference it.
+
+**`k8s/servicemonitor.yaml`** — `ServiceMonitor` (CRD from `kube-prometheus-stack`) that tells in-cluster Prometheus to scrape the app:
+- Must carry the label `release: monitoring` (required by the Prometheus CR's `serviceMonitorSelector`)
+- Selects pods labeled `app: light-service` in the `default` namespace
+- Scrapes port `http`, path `/metrics`, every `15s`
 
 **`argo-cd.yaml`** — ArgoCD `Application` named `light-service-app`:
 - Source: this repo, path `k8s/`, `targetRevision: HEAD`
@@ -240,7 +248,7 @@ This creates the GitOps loop: the image digest lives in Git, and ArgoCD reconcil
 
 Observability is delivered by the **kube-prometheus-stack** deployed through the `monitoring` ArgoCD application into the `monitoring` namespace. It provides:
 
-- **Prometheus** — cluster and workload metrics (scrapes Kubernetes components and service endpoints).
+- **Prometheus** — cluster and workload metrics (scrapes Kubernetes components and the app's `/metrics` endpoint via the `ServiceMonitor`).
 - **Grafana** — dashboards, pre-provisioned with a Prometheus data source (`admin` / `admin`).
 
 Access Grafana locally (port-forward example):
@@ -250,7 +258,49 @@ kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
 # open http://localhost:3000  (login: admin / admin)
 ```
 
-**What the application emits:** structured JSON logs to stdout, a `/health` endpoint, and a Prometheus `/metrics` endpoint. The metrics endpoint exposes `http_requests_total`, an `http_request_duration_seconds` latency histogram (by method/path/status), and an `uptime_seconds` gauge — all in Prometheus text exposition format. The in-cluster Prometheus scrapes it via a `ServiceMonitor` (`k8s/servicemonitor.yaml`, namespace `default`, port `http`, path `/metrics`, every 15s), giving you request-rate and latency metrics without relying on access logs alone. JSON logs remain visible via `kubectl logs` and can be forwarded to a log backend when a shipper is added.
+### Application metrics (`/metrics`)
+
+The app exposes Prometheus text-format metrics at `GET /metrics` (the endpoint itself is excluded from the recorded metrics). Metric names are prefixed with the sanitized `APP_NAME` (default `light-service` → prefix `light_service`):
+
+| Metric | Type | Labels | Description |
+| ------ | ---- | ------ | ----------- |
+| `light_service_uptime_seconds` | gauge | — | Process uptime in seconds |
+| `light_service_http_requests_total` | counter | `method`, `path`, `status` | Total HTTP requests |
+| `light_service_http_request_duration_seconds_bucket` | histogram | `method`, `path`, `status`, `le` | Request latency buckets (incl. `+Inf`) |
+| `light_service_http_request_duration_seconds_sum` | histogram | `method`, `path`, `status` | Request latency sum (seconds) |
+| `light_service_http_request_duration_seconds_count` | histogram | `method`, `path`, `status` | Request latency sample count |
+
+### How Prometheus scrapes the app
+
+The in-cluster Prometheus discovers the app through `k8s/servicemonitor.yaml` (a `ServiceMonitor` CRD). Two requirements must be met or the target is silently ignored:
+
+1. The `ServiceMonitor` must be labeled `release: monitoring` — this is what the Prometheus CR's `serviceMonitorSelector` matches.
+2. The `Service` port must be **named** (`http`) and the `ServiceMonitor` endpoint must reference that name.
+
+> **Gotcha — mutable image tags.** The deployment uses the mutable `:main` tag. Pushing new code rebuilds `:main` on Docker Hub, but ArgoCD only re-deploys when the manifest in Git changes. The CI pipeline updates `k8s/deployment.yaml` to the immutable commit-SHA tag and commits it back, which triggers the ArgoCD sync. If you change the image manually, force a rollout with `kubectl -n default rollout restart deploy/light-service` so the pods re-pull.
+
+### Example Grafana queries
+
+Pick the Prometheus data source and create panels with:
+
+```promql
+# Request rate per second
+sum(rate(light_service_http_requests_total[5m]))
+
+# Request rate per route
+sum by (path) (rate(light_service_http_requests_total[5m]))
+
+# Error ratio
+sum(rate(light_service_http_requests_total{status=~"5.."}[5m]))
+  /
+sum(rate(light_service_http_requests_total[5m]))
+
+# Latency P95
+histogram_quantile(0.95,
+  sum by (le) (rate(light_service_http_request_duration_seconds_bucket[5m])))
+```
+
+JSON logs remain visible via `kubectl logs` and can be forwarded to a log backend when a shipper is added.
 
 ---
 
@@ -265,6 +315,7 @@ npm test
 This covers:
 - `GET /` returns greeting, hostname, and version
 - `GET /health` returns `{"status":"ok"}`
+- `GET /metrics` returns Prometheus text format with the expected metric families
 - Unknown routes return `404`
 - The JSON logger emits a single valid JSON line and respects log level
 - The access-log middleware logs each request as structured JSON
@@ -274,6 +325,7 @@ This covers:
 ```bash
 curl -s http://localhost:8000/health   # {"status":"ok"}
 curl -s http://localhost:8000/         # {"message":"...","hostname":"...","version":"..."}
+curl -s http://localhost:8000/metrics  # Prometheus text format (light_service_* metrics)
 ```
 
 ---
