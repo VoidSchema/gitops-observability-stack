@@ -180,7 +180,7 @@ All configuration is supplied via environment variables.
 
 | Variable      | Default                                          | Purpose                                |
 | ------------- | ------------------------------------------------ | -------------------------------------- |
-| `APP_NAME`    | `hello-service` (server.js uses `light-service`) | Service / log name                     |
+| `APP_NAME`    | `light-service` | Service / log name                     |
 | `APP_VERSION` | `0.1.0`                                          | Version reported by `GET /`            |
 | `GREETING`    | `Hello from the GitOps observability pipeline!`  | Custom greeting in `GET /`             |
 | `PORT`        | `8000`                                           | HTTP listen port                       |
@@ -287,7 +287,3 @@ curl -s http://localhost:8000/         # {"message":"...","hostname":"...","vers
 - **Dockerfile runs dev mode.** `Dockerfile` ends with `CMD npm run dev` (Node `--watch`), which is appropriate for local use but should be `npm start` for production images.
 
 ---
-
-## License
-
-No license file is currently present in this repository. Add a `LICENSE` before distributing.
