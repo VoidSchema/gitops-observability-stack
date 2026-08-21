@@ -2,7 +2,7 @@ import os from "node:os";
 import { createApp } from "./app.js";
 import { createLogger } from "./logger.js";
 
-const appName = process.env.APP_NAME || "hello-service";
+const appName = process.env.APP_NAME || "light-service";
 const version = process.env.APP_VERSION || "0.1.0";
 const port = Number(process.env.PORT || 8000);
 const host = process.env.HOST || "0.0.0.0";
