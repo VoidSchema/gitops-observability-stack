@@ -16,6 +16,7 @@ function escapeLabel(value) {
 export function createMetrics({
   name = process.env.APP_NAME || "light-service",
 } = {}) {
+  const prefix = name.replace(/[^a-zA-Z0-9_]/g, "_");
   const requestTotals = new Map();
   const requestBuckets = new Map();
   for (const b of DURATION_BUCKETS) {
@@ -51,26 +52,26 @@ export function createMetrics({
     const ts = Date.now();
     const uptime = (ts - startTime) / 1000;
 
-    lines.push(`# HELP ${name}_uptime_seconds Process uptime in seconds.`);
-    lines.push(`# TYPE ${name}_uptime_seconds gauge`);
-    lines.push(`${name}_uptime_seconds ${uptime.toFixed(3)} ${ts}`);
+    lines.push(`# HELP ${prefix}_uptime_seconds Process uptime in seconds.`);
+    lines.push(`# TYPE ${prefix}_uptime_seconds gauge`);
+    lines.push(`${prefix}_uptime_seconds ${uptime.toFixed(3)} ${ts}`);
 
-    lines.push(`# HELP ${name}_http_requests_total Total number of HTTP requests.`);
-    lines.push(`# TYPE ${name}_http_requests_total counter`);
+    lines.push(`# HELP ${prefix}_http_requests_total Total number of HTTP requests.`);
+    lines.push(`# TYPE ${prefix}_http_requests_total counter`);
     for (const { method, path, status, value } of requestTotals.values()) {
       lines.push(
-        `${name}_http_requests_total{method="${escapeLabel(method)}",path="${escapeLabel(
+        `${prefix}_http_requests_total{method="${escapeLabel(method)}",path="${escapeLabel(
           path
         )}",status="${status}"} ${value} ${ts}`
       );
     }
 
-    lines.push(`# HELP ${name}_http_request_duration_seconds HTTP request latency.`);
-    lines.push(`# TYPE ${name}_http_request_duration_seconds histogram`);
+    lines.push(`# HELP ${prefix}_http_request_duration_seconds HTTP request latency.`);
+    lines.push(`# TYPE ${prefix}_http_request_duration_seconds histogram`);
     for (const [bucket, bucketMap] of requestBuckets.entries()) {
       for (const { method, path, status, value } of bucketMap.values()) {
         lines.push(
-          `${name}_http_request_duration_seconds_bucket{method="${escapeLabel(
+          `${prefix}_http_request_duration_seconds_bucket{method="${escapeLabel(
             method
           )}",path="${escapeLabel(path)}",status="${status}",le="${bucket}"} ${value} ${ts}`
         );
@@ -78,14 +79,14 @@ export function createMetrics({
     }
     for (const { method, path, status, value } of requestSums.values()) {
       lines.push(
-        `${name}_http_request_duration_seconds_sum{method="${escapeLabel(
+        `${prefix}_http_request_duration_seconds_sum{method="${escapeLabel(
           method
         )}",path="${escapeLabel(path)}",status="${status}"} ${value.toFixed(6)} ${ts}`
       );
     }
     for (const { method, path, status, value } of requestTotals.values()) {
       lines.push(
-        `${name}_http_request_duration_seconds_count{method="${escapeLabel(
+        `${prefix}_http_request_duration_seconds_count{method="${escapeLabel(
           method
         )}",path="${escapeLabel(path)}",status="${status}"} ${value} ${ts}`
       );
