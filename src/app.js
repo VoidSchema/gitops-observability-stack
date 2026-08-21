@@ -3,7 +3,7 @@ import express from "express";
 import { createLogger } from "./logger.js";
 
 export function createApp(options = {}) {
-  const appName = options.appName || process.env.APP_NAME || "hello-service";
+  const appName = options.appName || process.env.APP_NAME || "light-service";
   const version = options.version || process.env.APP_VERSION || "0.1.0";
   const greeting =
     options.greeting ||

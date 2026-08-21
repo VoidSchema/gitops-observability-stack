@@ -278,12 +278,3 @@ curl -s http://localhost:8000/         # {"message":"...","hostname":"...","vers
 ```
 
 ---
-
-## Known Issues
-
-- **Naming inconsistency.** The repository/app is referred to as `light-service` in `k8s/`, ArgoCD, and CI, but `package.json` declares `hello-service` and `src/app.js` defaults the logger name to `hello-service`. The server entry point (`src/server.js`) correctly uses `light-service`. Standardize `package.json` and the app default if desired.
-- **No application metrics endpoint.** The application does not expose `/metrics`, so Prometheus cannot scrape request-rate/latency directly from the app. Observability relies on cluster metrics and stdout logs.
-- **Monitoring stack mismatch in history.** Earlier docs referenced VictoriaLogs; the actual deployment uses `kube-prometheus-stack` (Prometheus + Grafana).
-- **Dockerfile runs dev mode.** `Dockerfile` ends with `CMD npm run dev` (Node `--watch`), which is appropriate for local use but should be `npm start` for production images.
-
----

@@ -2,7 +2,7 @@ const LEVELS = { DEBUG: 10, INFO: 20, WARN: 30, ERROR: 40 };
 const RESERVED = new Set(["timestamp", "level", "logger", "message"]);
 
 export function createLogger({
-  name = process.env.APP_NAME || "hello-service",
+  name = process.env.APP_NAME || "light-service",
   level = process.env.LOG_LEVEL || "INFO",
   stream = process.stdout,
 } = {}) {
