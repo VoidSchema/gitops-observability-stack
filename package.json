@@ -1,5 +1,5 @@
 {
-  "name": "hello-service",
+  "name": "light-service",
   "version": "0.1.0",
   "description": "Lightweight Express target app for the GitOps + observability pipeline",
   "type": "module",
