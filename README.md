@@ -23,8 +23,6 @@ An end-to-end reference stack that demonstrates a **GitOps + Observability** wor
 - [CI/CD Pipeline](#cicd-pipeline)
 - [Observability](#observability)
 - [Testing](#testing)
-- [Known Issues](#known-issues)
-- [License](#license)
 
 ---
 
