@@ -13,12 +13,25 @@ spec:
       values: |
         grafana:
           adminPassword: "admin"
+          additionalDataSources:
+            - name: Prometheus
+              type: prometheus
+              uid: prometheus
+              url: http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+              access: proxy
+              isDefault: false
   destination:
     name: in-cluster
     namespace: monitoring
   syncPolicy:
     automated:
       prune: true
-      selfHeal: true
+      selfHeal: false
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
+  ignoreDifferences:
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+    jqPathExpressions:
+    - .metadata.annotations
