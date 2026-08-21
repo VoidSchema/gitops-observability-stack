@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: light-service
-        image: voidschema/light-service:latest
+        image: voidschema/light-service:6cfce53
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
