@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: light-service
+  namespace: default
+  labels:
+    app: light-service
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: light-service
+  namespaceSelector:
+    matchNames:
+    - default
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 15s

@@ -1,6 +1,7 @@
 import os from "node:os";
 import express from "express";
 import { createLogger } from "./logger.js";
+import { createMetrics } from "./metrics.js";
 
 export function createApp(options = {}) {
   const appName = options.appName || process.env.APP_NAME || "light-service";
@@ -10,6 +11,7 @@ export function createApp(options = {}) {
     process.env.GREETING ||
     "Hello from the GitOps observability pipeline!";
   const logger = options.logger || createLogger({ name: appName });
+  const metrics = options.metrics || createMetrics({ name: appName });
 
   const app = express();
   app.disable("x-powered-by");
@@ -19,12 +21,16 @@ export function createApp(options = {}) {
     const start = process.hrtime.bigint();
     res.on("finish", () => {
       const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
+      const durationS = durationMs / 1e3;
       logger.info("request completed", {
         method: req.method,
         path: req.originalUrl,
         status: res.statusCode,
         duration_ms: Math.round(durationMs * 100) / 100,
       });
+      if (req.originalUrl !== "/metrics") {
+        metrics.record(req.method, req.originalUrl, res.statusCode, durationS);
+      }
     });
     next();
   });
@@ -37,6 +43,11 @@ export function createApp(options = {}) {
   app.get("/health", (req, res) => {
     logger.info("health check ok", { endpoint: "/health" });
     res.json({ status: "ok" });
+  });
+
+  app.get("/metrics", (req, res) => {
+    res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+    res.send(metrics.render());
   });
 
   return app;

@@ -66,7 +66,7 @@ The application itself is intentionally minimal: a single Express process that s
 └─────────────────────────────┘
 ```
 
-**Observability note:** Monitoring is provided by the `kube-prometheus-stack` Helm chart (Prometheus + Grafana), **not** VictoriaLogs. The application does not expose a `/metrics` endpoint; observability of the app is currently limited to cluster-level metrics and its stdout JSON logs. See [Observability](#observability) and [Known Issues](#known-issues).
+**Observability note:** Monitoring is provided by the `kube-prometheus-stack` Helm chart (Prometheus + Grafana), **not** VictoriaLogs. The application exposes a Prometheus `/metrics` endpoint (request count, latency histogram, uptime) that Prometheus scrapes directly via pod annotations, in addition to its stdout JSON logs. See [Observability](#observability).
 
 ---
 
@@ -170,6 +170,7 @@ ArgoCD will automatically sync `k8s/deployment.yaml` and `k8s/services.yaml` int
 | ------ | ----------- | -------------------------------------------------------------------- | ------------------------------------ |
 | `GET`  | `/`         | Greeting with hostname and version                                   | `200 {"message","hostname","version"}` |
 | `GET`  | `/health`   | Liveness/readiness probe target                                      | `200 {"status":"ok"}`                |
+| `GET`  | `/metrics`  | Prometheus exposition format (request count, latency histogram, uptime) | `200 text/plain`                |
 | any    | other       | Unknown route                                                        | `404`                                |
 
 ### Configuration
@@ -249,7 +250,7 @@ kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
 # open http://localhost:3000  (login: admin / admin)
 ```
 
-**What the application emits:** structured JSON logs to stdout and a `/health` endpoint. These are visible via `kubectl logs` and, when a log shipper is added, can be forwarded to your logging backend. The app does **not** currently expose a Prometheus `/metrics` endpoint, so request-rate/latency metrics are not scraped directly from the app — only inferred from cluster/access logs. See [Known Issues](#known-issues).
+**What the application emits:** structured JSON logs to stdout, a `/health` endpoint, and a Prometheus `/metrics` endpoint. The metrics endpoint exposes `http_requests_total`, an `http_request_duration_seconds` latency histogram (by method/path/status), and an `uptime_seconds` gauge — all in Prometheus text exposition format. The in-cluster Prometheus scrapes it via a `ServiceMonitor` (`k8s/servicemonitor.yaml`, namespace `default`, port `http`, path `/metrics`, every 15s), giving you request-rate and latency metrics without relying on access logs alone. JSON logs remain visible via `kubectl logs` and can be forwarded to a log backend when a shipper is added.
 
 ---
 

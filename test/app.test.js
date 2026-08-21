@@ -68,6 +68,18 @@ test("unknown route returns 404", async () => {
   assert.strictEqual(res.status, 404);
 });
 
+test("GET /metrics returns Prometheus text format", async () => {
+  await fetch(`${baseUrl}/`);
+  const res = await fetch(`${baseUrl}/metrics`);
+  assert.strictEqual(res.status, 200);
+  assert.match(res.headers.get("content-type"), /text\/plain/);
+
+  const body = await res.text();
+  assert.match(body, /# TYPE [\w-]+_http_requests_total counter/);
+  assert.match(body, /# TYPE [\w-]+_uptime_seconds gauge/);
+  assert.match(body, /[\w-]+_http_requests_total\{/);
+});
+
 test("logger emits a single line of valid JSON with extra fields", () => {
   const { stream, lines } = captureStream();
   const logger = createLogger({ name: "test-logger", level: "INFO", stream });
