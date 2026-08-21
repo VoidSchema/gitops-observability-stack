@@ -13,9 +13,9 @@ spec:
       values: |
         grafana:
           adminPassword: "admin"
-    destination:
-              name: in-cluster
-              namespace: monitoring
+  destination:
+    name: in-cluster
+    namespace: monitoring
   syncPolicy:
     automated:
       prune: true

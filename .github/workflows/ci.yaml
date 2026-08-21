@@ -48,11 +48,11 @@ jobs:
 
       - name: Update Kubernetes Deployment Image Tag
         run: |
-          IMAGE_TAG=$(git rev-parse --short HEAD)
-          echo "Updating deployment.yaml with image tag: $IMAGE_TAG"
+          TAG="${{ steps.meta.outputs.version }}"
+          echo "Updating deployment.yaml with image tag: $TAG"
 
-          # Mengganti baris image di k8s/deployment.yaml secara presisi
-          sed -i "s|image: .*/light-service:.*|image: ${{ secrets.DOCKER_HUB_USERNAME }}/light-service:$IMAGE_TAG|g" k8s/deployment.yaml
+
+          sed -i "s|image: .*/light-service:.*|image: ${{ secrets.DOCKER_HUB_USERNAME }}/light-service:$TAG|g" k8s/deployment.yaml
 
       - name: Commit and Push Image Tag Changes
         uses: stefanzweifel/git-auto-commit-action@v5
